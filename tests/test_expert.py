@@ -1,5 +1,7 @@
+import random
+
 from freecad_s1.expert import Meta, ObjMeta, expert_actions, expert_plan_length
-from freecad_s1.goals import RECIPES
+from freecad_s1.goals import PATTERNS, RECIPES, sample_split_goal
 from freecad_s1.schema import Goal, GoalFeature
 
 BOX = Goal([GoalFeature("base_box", {"w": 20, "d": 10, "h": 5}), GoalFeature("fillet_top", {"r": 1})], scale=20)
@@ -50,3 +52,11 @@ def test_dressup_and_done():
 def test_plan_length():
     # New/WB/Body + (select, sketch, rect, 3 constraints, leave, pad) + (select, fillet) + Done
     assert expert_plan_length(BOX, False, "StartWorkbench", False) == 3 + 8 + 2 + 1
+
+
+def test_boss_patterns_only_in_training():
+    def patterned_boss(split):
+        goals = [sample_split_goal(split, 3, random.Random(seed)) for seed in range(300)]
+        return any(a.kind == "boss_cyl" and b.kind in PATTERNS for g in goals for a, b in zip(g.features, g.features[1:]))
+    assert patterned_boss("train")
+    assert not patterned_boss("iid")  # seeded evaluation suites stay as they were

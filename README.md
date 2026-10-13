@@ -173,4 +173,5 @@ Usage from Python, and what to pass in (`state`, `goal`, `actions`), is on the m
 | `viz/` | Remotion project that renders the cover and charts from `results/` (`scripts/export_chart_data.py`, then `viz/render.sh`) |
 | `release/hf/` | Taiga-S1: weights, config, card, charts |
 | `release/mesa-s1/` | Mesa-S1: weights, config, card, eval results |
+| `.claude/skills/freecad-goals-json/` | Agent skill for writing custom goal JSON files; Claude Code loads it inside this repo, other agents take it by copying the folder into their skills directory (e.g. `~/.claude/skills/`) |
 | `results/`, `results/mesa-s1/` | Evaluation reports |

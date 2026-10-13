@@ -202,17 +202,12 @@ def _composite(rng: random.Random, base: GoalFeature, level: int) -> Goal:
 
 
 def _cut_group(rng: random.Random, base: GoalFeature) -> tuple[list[GoalFeature], bool]:
-    """A hole/pocket/boss, optionally patterned or mirrored (bosses mirror and,
-    since the LEGO-plate fix, also pattern: a pattern copies whatever feature
-    precedes it, additive or subtractive)."""
+    """A hole/pocket, optionally patterned or mirrored (or a mirrored boss)."""
     pattern_choice = rng.random()
     if base.kind in ("base_cyl", "base_hex") and pattern_choice < 0.5:
         rho = base.params["r"] * _u(rng, 0.45, 0.65)
         n = rng.randint(3, 8)
         r = _u(rng, 1.0, max(1.1, min(rho * math.sin(math.pi / n) * 0.6, base.params["r"] * 0.15)))
-        if rng.random() < 0.3:
-            return [GoalFeature("boss_cyl", {"r": r, "x": round(rho, 1), "y": 0.0, "h": _u(rng, 2, 20)}),
-                    GoalFeature("polar_pattern", {"n": float(n)})], False
         return [GoalFeature(rng.choice(["hole", "hole_std"]), {"r": r, "x": round(rho, 1), "y": 0.0}),
                 GoalFeature("polar_pattern", {"n": float(n)})], True
     if base.kind == "base_box" and pattern_choice < 0.35:
@@ -221,9 +216,6 @@ def _cut_group(rng: random.Random, base: GoalFeature) -> tuple[list[GoalFeature]
         r = _u(rng, 1.0, max(1.1, min(d * 0.12, w / (4 * n))))
         x0 = round(-w / 2 + w * 0.2, 1)
         length = round(w * 0.6, 1)
-        if rng.random() < 0.3:
-            return [GoalFeature("boss_cyl", {"r": r, "x": x0, "y": _u(rng, -d * 0.2, d * 0.2), "h": _u(rng, 2, 20)}),
-                    GoalFeature("linear_pattern", {"n": float(n), "length": length})], False
         return [GoalFeature(rng.choice(["hole", "hole_std"]), {"r": r, "x": x0, "y": _u(rng, -d * 0.2, d * 0.2)}),
                 GoalFeature("linear_pattern", {"n": float(n), "length": length})], True
     if pattern_choice < 0.75:
@@ -238,8 +230,8 @@ def _cut_group(rng: random.Random, base: GoalFeature) -> tuple[list[GoalFeature]
 # below name combinations and adjacent pairs that never do. The first two are
 # excluded from training by filtering; the last two are pairs the training
 # sampler cannot produce at all (it only mirrors hole/hole_std/pocket_rect/
-# boss_cyl; patterns cover hole/hole_std and, since the LEGO-plate fix,
-# boss_cyl too -- boss_box patterns stay held out).
+# boss_cyl, and only patterns hole/hole_std, plus boss_cyl in the training
+# split via pattern_bosses below).
 # ---------------------------------------------------------------------------
 
 PATTERNS = {"polar_pattern", "linear_pattern"}
@@ -333,6 +325,16 @@ def snap_to_defaults(goal: Goal, rng: random.Random, p: float) -> Goal:
     return goal
 
 
+def pattern_bosses(goal: Goal, rng: random.Random, p: float) -> Goal:
+    """Turn a patterned hole into a patterned boss_cyl with probability p. A
+    pattern repeats whatever the Tip is, additive or subtractive. Training split
+    only, after sampling, so the seeded evaluation suites stay unchanged."""
+    for i, f in enumerate(goal.features[1:-1], 1):
+        if f.kind in ("hole", "hole_std") and goal.features[i + 1].kind in PATTERNS and rng.random() < p:
+            goal.features[i] = GoalFeature("boss_cyl", {**f.params, "h": _u(rng, 2, 20)})
+    return goal
+
+
 def sample_split_goal(split: str, level: int, rng: random.Random, tries: int = 2000) -> Goal:
     if split == "comp2":
         return _mirrored_boss_box_goal(rng)
@@ -343,8 +345,10 @@ def sample_split_goal(split: str, level: int, rng: random.Random, tries: int = 2
     for _ in range(tries):
         goal = sample_goal(level, rng)
         if goal_in_split(goal, split):
-            if split == "train" and DEFAULT_SNAP > 0:
-                snap_to_defaults(goal, rng, DEFAULT_SNAP)
+            if split == "train":
+                pattern_bosses(goal, rng, 0.3)
+                if DEFAULT_SNAP > 0:
+                    snap_to_defaults(goal, rng, DEFAULT_SNAP)
             return goal
     raise ValueError(f"could not sample a {split} goal at level {level}")
 

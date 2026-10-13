@@ -74,41 +74,31 @@ pitch (each pattern repeats only the boss directly before it).
 ## Validate before handing over
 
 Every goal must build with the clean expert to a single valid solid.
+`build_target` does exactly that and raises `GoalBuildError` otherwise.
 Run headless (needs FreeCAD's `FreeCAD.so` on `PYTHONPATH`):
 
 ```bash
 PYTHONPATH=<FreeCAD lib>:$PYTHONPATH .venv/bin/python -c "
 import json
-from freecad_s1.schema import Goal
+from freecad_s1.runtime.episode import build_target
 from freecad_s1.runtime.session import HeadlessSession
-from freecad_s1.runtime.episode import build_target, score
-from freecad_s1.goals import StartSpec
-spec = json.load(open('<file>'))['<goal>']
+from freecad_s1.schema import Goal
 s = HeadlessSession()
-goal = Goal.from_json(spec)
-target = build_target(s, goal)  # raises GoalBuildError if infeasible
-s.reset(goal, StartSpec(doc_open=True, workbench='PartDesignWorkbench'))
-while True:
-    exp = s.expert()
-    if exp[0] == 'Done':
-        s.step('Done'); break
-    assert s.step(exp[0])['error'] is None
-print('OK, IoU:', round(score(s, target)['iou'], 4))
+build_target(s, Goal.from_json(json.load(open('<file>'))['<goal>']))
+print('OK')
 s.shutdown()
 "
 ```
 
-Success is `IoU >= 0.99` against the target. If `build_target` raises,
-the geometry is infeasible (overlapping profiles, pattern running off the
-part, dressup radius too large): shrink sizes, move centers inward, or
-shorten the pattern.
+If it raises, the geometry is infeasible (overlapping profiles, pattern
+running off the part, dressup radius too large): shrink sizes, move
+centers inward, or shorten the pattern.
 
 ## Known model limits
 
-- Weights trained before the sampler covered boss patterns struggle with a
-  pattern directly on a `boss_cyl` (they loop Pad/Undo instead of selecting
-  the Tip). Current `scripts/gui_demo.py` recovers via `--fallback-loops`,
-  but prefer validating such goals with the expert snippet above.
+- Patterns on `boss_cyl` are only in the training split (`pattern_bosses`
+  in `goals.py`). Weights trained before that loop Pad/Undo instead of
+  selecting the Tip on these goals.
 - Deliberately held-out pairings (`heldout_composition` in `goals.py`):
   any pattern with `boss_box`, `mirror` after `hole_std` or `boss_box`,
   and any pattern after `pocket_rect`. The released models still build
