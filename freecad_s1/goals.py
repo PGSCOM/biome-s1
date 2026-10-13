@@ -202,12 +202,17 @@ def _composite(rng: random.Random, base: GoalFeature, level: int) -> Goal:
 
 
 def _cut_group(rng: random.Random, base: GoalFeature) -> tuple[list[GoalFeature], bool]:
-    """A hole/pocket, optionally patterned or mirrored (or a mirrored boss)."""
+    """A hole/pocket/boss, optionally patterned or mirrored (bosses mirror and,
+    since the LEGO-plate fix, also pattern: a pattern copies whatever feature
+    precedes it, additive or subtractive)."""
     pattern_choice = rng.random()
     if base.kind in ("base_cyl", "base_hex") and pattern_choice < 0.5:
         rho = base.params["r"] * _u(rng, 0.45, 0.65)
         n = rng.randint(3, 8)
         r = _u(rng, 1.0, max(1.1, min(rho * math.sin(math.pi / n) * 0.6, base.params["r"] * 0.15)))
+        if rng.random() < 0.3:
+            return [GoalFeature("boss_cyl", {"r": r, "x": round(rho, 1), "y": 0.0, "h": _u(rng, 2, 20)}),
+                    GoalFeature("polar_pattern", {"n": float(n)})], False
         return [GoalFeature(rng.choice(["hole", "hole_std"]), {"r": r, "x": round(rho, 1), "y": 0.0}),
                 GoalFeature("polar_pattern", {"n": float(n)})], True
     if base.kind == "base_box" and pattern_choice < 0.35:
@@ -216,6 +221,9 @@ def _cut_group(rng: random.Random, base: GoalFeature) -> tuple[list[GoalFeature]
         r = _u(rng, 1.0, max(1.1, min(d * 0.12, w / (4 * n))))
         x0 = round(-w / 2 + w * 0.2, 1)
         length = round(w * 0.6, 1)
+        if rng.random() < 0.3:
+            return [GoalFeature("boss_cyl", {"r": r, "x": x0, "y": _u(rng, -d * 0.2, d * 0.2), "h": _u(rng, 2, 20)}),
+                    GoalFeature("linear_pattern", {"n": float(n), "length": length})], False
         return [GoalFeature(rng.choice(["hole", "hole_std"]), {"r": r, "x": x0, "y": _u(rng, -d * 0.2, d * 0.2)}),
                 GoalFeature("linear_pattern", {"n": float(n), "length": length})], True
     if pattern_choice < 0.75:
@@ -230,7 +238,8 @@ def _cut_group(rng: random.Random, base: GoalFeature) -> tuple[list[GoalFeature]
 # below name combinations and adjacent pairs that never do. The first two are
 # excluded from training by filtering; the last two are pairs the training
 # sampler cannot produce at all (it only mirrors hole/hole_std/pocket_rect/
-# boss_cyl and only patterns hole/hole_std).
+# boss_cyl; patterns cover hole/hole_std and, since the LEGO-plate fix,
+# boss_cyl too -- boss_box patterns stay held out).
 # ---------------------------------------------------------------------------
 
 PATTERNS = {"polar_pattern", "linear_pattern"}
